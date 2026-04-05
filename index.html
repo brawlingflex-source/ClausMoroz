@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат с Дедом Морозом</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Контейнер для 3D модели Деда Мороза */
+        #santa3d-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Контейнер для чата поверх 3D модели */
+        #chat-container {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Анимация снежинок */
+        .snowflake {
+            position: fixed;
+            top: -10px;
+            color: #fff;
+            font-size: 1em;
+            font-family: Arial, sans-serif;
+            text-shadow: 0 0 5px #000;
+            user-select: none;
+            cursor: default;
+            animation-name: snowflakes-fall, snowflakes-shake;
+            animation-duration: 10s, 3s;
+            animation-timing-function: linear, ease-in-out;
+            animation-iteration-count: infinite, infinite;
+            animation-play-state: running, running;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        @keyframes snowflakes-fall {
+            0% { top: -10%; }
+            100% { top: 100%; }
+        }
+
+        @keyframes snowflakes-shake {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(80px); }
+        }
+
+        /* Экран входа */
+        #loginScreen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .title {
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            color: #fff;
+            text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
+            }
+            to {
+                text-shadow: 0 0 20px #00ffff, 0 0 30px #00ffff, 0 0 40px #00ffff, 0 0 50px #00ffff;
+            }
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        input[type="text"]:focus {
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(45deg, #0066cc, #0099ff);
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        button:hover {
+            background: linear-gradient(45deg, #0099ff, #00ccff);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 153, 255, 0.4);
+        }
+
+        /* Чат интерфейс */
+        #chatScreen {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(0, 50, 100, 0.8);
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: rgba(0, 30, 60, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .chat-header h2 {
+            font-size: 1.5em;
+            color: #00ccff;
+        }
+
+        .logout-btn {
+            padding: 8px 15px;
+            background: rgba(255, 100, 100, 0.8);
+            font-size: 14px;
+            width: auto;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            position: relative;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.sent {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #0066cc, #0099ff);
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.received {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-content {
+            word-wrap: break-word;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+            text-align: right;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .delete-btn:hover {
+            background: #ff6666;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(255, 68, 68, 0.5);
+        }
+
+        .message:hover .delete-btn,
+        .santa-message .delete-btn {
+            display: flex;
+        }
+
+        /* Модальное окно подтверждения удаления */
+        .delete-confirm-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .delete-confirm-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .delete-confirm-title {
+            color: #ff4444;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .delete-confirm-message {
+            color: #ffffff;
+            font-size: 16px;
+            margin-bottom: 20px;
+            text-align: center;
+            word-wrap: break-word;
+        }
+
+        .delete-confirm-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .delete-confirm-btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .delete-confirm-btn.confirm {
+            background: #ff4444;
+            color: white;
+        }
+
+        .delete-confirm-btn.confirm:hover {
+            background: #ff6666;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 68, 68, 0.4);
+        }
+
+        .delete-confirm-btn.cancel {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .delete-confirm-btn.cancel:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: rgba(0, 30, 60, 0.9);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input-container input {
+            flex: 1;
+        }
+
+        .chat-input-container button {
+            width: auto;
+            padding: 15px 25px;
+        }
+
+        .typing-indicator {
+            padding: 15px 20px;
+            font-style: italic;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 500;
+            min-height: 50px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Интерфейс Деда Мороза */
+        #santaChatScreen {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            background: rgba(100, 0, 0, 0.8);
+        }
+
+        .santa-header {
+            background: rgba(60, 0, 0, 0.9);
+            position: relative;
+            z-index: 1;
+        }
+
+        .santa-header > div {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            z-index: 2;
+            pointer-events: auto;
+        }
+
+        .santa-header h2 {
+            color: #ff4444;
+        }
+
+        .users-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .user-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .user-item.active {
+            background: rgba(255, 68, 68, 0.3);
+            border: 1px solid #ff4444;
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .user-name {
+            font-weight: bold;
+            color: #ff4444;
+        }
+
+        .user-last-seen {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .unread-badge {
+            background: #ff4444;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+        }
+
+        .delete-chat-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .delete-chat-btn:hover {
+            background: #cc0000;
+            transform: scale(1.05);
+        }
+
+        .santa-messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: rgba(60, 0, 0, 0.5);
+        }
+
+        .santa-message {
+            max-width: 70%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            position: relative;
+        }
+
+        .santa-message.from-user {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            border-bottom-left-radius: 5px;
+        }
+
+        .santa-message.from-santa {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #cc0000, #ff4444);
+            border-bottom-right-radius: 5px;
+        }
+
+        .santa-chat-input-container {
+            padding: 20px;
+            background: rgba(60, 0, 0, 0.9);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 10px;
+        }
+
+        .back-btn {
+            padding: 8px 15px;
+            background: rgba(100, 100, 100, 0.8);
+            font-size: 14px;
+            width: auto;
+            margin-right: 10px;
+            z-index: 1000;
+            pointer-events: auto !important;
+            cursor: pointer;
+        }
+
+        .santa-messages-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .back-btn {
+            font-size: 16px !important;
+            font-weight: bold !important;
+            cursor: pointer !important;
+            padding: 8px 20px !important;
+            color: #ff4444 !important;
+            transition: all 0.3s ease;
+            position: relative !important;
+            z-index: 9999 !important;
+            pointer-events: auto !important;
+            display: none !important;
+            user-select: none !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 2px solid rgba(255, 68, 68, 0.5) !important;
+            border-radius: 8px !important;
+            white-space: nowrap !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        .back-btn:hover {
+            color: #ff6666 !important;
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.2) !important;
+            border-color: rgba(255, 68, 68, 0.8) !important;
+            box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);
+        }
+
+        .back-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(255, 68, 68, 0.2);
+        }
+
+        .date-header {
+            text-align: center;
+            padding: 10px;
+            margin: 15px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #ff4444;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Адаптивность для мобильных устройств */
+        @media (max-width: 768px) {
+            .login-container {
+                padding: 20px;
+            }
+
+            .title {
+                font-size: 1.8em;
+            }
+
+            .message {
+                max-width: 85%;
+            }
+
+            .chat-header {
+                padding: 15px;
+            }
+
+            .chat-header h2 {
+                font-size: 1.2em;
+            }
+
+            .santa-messages-container {
+                padding: 10px;
+            }
+
+            .santa-chat-input-container {
+                padding: 10px;
+            }
+        }
+
+        /* Скроллбар */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 204, 255, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 204, 255, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <!-- Анимированные снежинки -->
+    <div id="snowflakes"></div>
+
+    <!-- Экран входа -->
+    <div id="loginScreen">
+        <div class="login-container">
+            <h1 class="title">Начни общение с Дедом Морозом прямо сейчас!</h1>
+            <div class="input-group">
+                <input type="text" id="usernameInput" placeholder="Напиши своё имя">
+            </div>
+            <button onclick="login()">Продолжить</button>
+        </div>
+    </div>
+
+    <!-- Чат для обычного пользователя -->
+    <div id="chatScreen">
+        <div class="chat-header">
+            <h2>Чат с Дедом Морозом</h2>
+            <button class="logout-btn" onclick="logout()">Выйти</button>
+        </div>
+        <div class="messages-container" id="messagesContainer"></div>
+        <div class="typing-indicator" id="typingIndicator"></div>
+        <div class="chat-input-container">
+            <input type="text" id="messageInput" placeholder="Напишите сообщение..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <!-- Интерфейс Деда Мороза -->
+    <div id="santaChatScreen">
+        <div class="chat-header santa-header">
+            <div class="header-left">
+                <button id="backButton" class="back-btn" onclick="showUsersList()" title="Закрыть чat">← Назад</button>
+                <h2 id="santaChatTitle">Дед Мороз - Чаты</h2>
+            </div>
+            <button class="logout-btn" onclick="logout()">Выйти</button>
+        </div>
+        <div class="users-list" id="usersList"></div>
+        <div class="santa-messages-wrapper" style="display: none;">
+            <div class="santa-messages-container" id="santaMessagesContainer"></div>
+        </div>
+        <div class="typing-indicator" id="santaTypingIndicator" style="display: none;"></div>
+        <div class="santa-chat-input-container" id="santaChatInput" style="display: none;">
+            <input type="text" id="santaMessageInput" placeholder="Напишите ответ..." onkeypress="handleSantaKeyPress(event)">
+            <button onclick="sendSantaMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script>
+        // Firebase конфигурация
+        const firebaseConfig = {
+            apiKey: "AIzaSyAu_wfaRhTsWNbsyFYmEigopqJck7ynxlU",
+            authDomain: "messeger-0wo2h4.firebaseapp.com",
+            databaseURL: "https://messeger-0wo2h4-default-rtdb.firebaseio.com",
+            projectId: "messeger-0wo2h4",
+            storageBucket: "messeger-0wo2h4.firebasestorage.app",
+            messagingSenderId: "1057251395030",
+            appId: "1:1057251395030:web:86f8f718ed938055e29077"
+        };
+
+        // Инициализация Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Глобальные переменные
+        let currentUser = null;
+        let isSanta = false;
+        let selectedUser = null;
+        let typingTimeout = null;
+        let messagesListener = null;
+        let usersListener = null;
+
+        // Создание снежинок
+        function createSnowflakes() {
+            const snowflakesContainer = document.getElementById('snowflakes');
+            const numberOfSnowflakes = 5;
+
+            for (let i = 0; i < numberOfSnowflakes; i++) {
+                const snowflake = document.createElement('div');
+                snowflake.className = 'snowflake';
+                snowflake.innerHTML = '❄';
+                snowflake.style.left = Math.random() * 100 + 'vw';
+                snowflake.style.animationDuration = Math.random() * 3 + 7 + 's';
+                snowflake.style.animationDelay = Math.random() * 5 + 's';
+                snowflake.style.fontSize = Math.random() * 10 + 10 + 'px';
+                snowflake.style.opacity = Math.random() * 0.5 + 0.5;
+                snowflakesContainer.appendChild(snowflake);
+            }
+        }
+
+        // Функция входа
+        function login() {
+            const username = document.getElementById('usernameInput').value.trim();
+
+            if (!username) {
+                alert('Пожалуйста, введите ваше имя');
+                return;
+            }
+
+            currentUser = username;
+            isSanta = username.toLowerCase() === 'дед мороз';
+
+            // Сохраняем пользователя в localStorage
+            localStorage.setItem('currentUser', username);
+            localStorage.setItem('isSanta', isSanta);
+
+            if (isSanta) {
+                showSantaChatScreen();
+                loadUsersList();
+            } else {
+                // Создаем запись пользователя в базе данных
+                database.ref(`users/${username}`).set({
+                    lastSeen: Date.now()
+                });
+
+                showChatScreen();
+                loadMessages();
+                updateUserLastSeen();
+            }
+
+            document.getElementById('loginScreen').style.display = 'none';
+        }
+
+        // Показать экран чата пользователя
+        function showChatScreen() {
+            document.getElementById('chatScreen').style.display = 'flex';
+            document.getElementById('santaChatScreen').style.display = 'none';
+        }
+
+        // Показать экран Деда Мороза
+        function showSantaChatScreen() {
+            document.getElementById('chatScreen').style.display = 'none';
+            document.getElementById('santaChatScreen').style.display = 'flex';
+            showUsersList();
+        }
+
+        // Показать список пользователей
+        window.showUsersList = function() {
+            console.log('showUsersList вызван');
+            // Отключаем слушатель сообщений
+            if (messagesListener) {
+                messagesListener.off();
+                messagesListener = null;
+            }
+
+            console.log('Скрываем сообщения');
+            document.getElementById('usersList').style.display = 'flex';
+            document.querySelector('.santa-messages-wrapper').style.display = 'none';
+            document.getElementById('santaTypingIndicator').style.display = 'none';
+            document.getElementById('santaChatInput').style.display = 'none';
+            document.getElementById('santaChatTitle').textContent = 'Дед Мороз - Чаты';
+            document.getElementById('backButton').style.display = 'none';
+            selectedUser = null;
+            console.log('showUsersList завершен');
+        }
+
+        // Загрузить сообщения пользователя
+        function loadMessages() {
+            if (messagesListener) {
+                messagesListener.off();
+            }
+
+            const messagesRef = database.ref(`messages/${currentUser}`);
+
+            messagesListener = messagesRef.on('value', (snapshot) => {
+                const messagesContainer = document.getElementById('messagesContainer');
+                messagesContainer.innerHTML = '';
+
+                const messages = snapshot.val();
+                if (messages) {
+                    // Группируем сообщения по датам
+                    const messagesByDate = {};
+                    Object.keys(messages).forEach(key => {
+                        const message = messages[key];
+                        const date = formatDate(message.timestamp);
+                        if (!messagesByDate[date]) {
+                            messagesByDate[date] = [];
+                        }
+                        messagesByDate[date].push(message);
+                    });
+
+                    // Отображаем сообщения по датам
+                    Object.keys(messagesByDate).sort().forEach(date => {
+                        // Добавляем заголовок с датой
+                        const dateHeader = document.createElement('div');
+                        dateHeader.className = 'date-header';
+                        dateHeader.textContent = date;
+                        messagesContainer.appendChild(dateHeader);
+
+                        // Добавляем сообщения за эту дату
+                        messagesByDate[date].forEach(message => {
+                            const key = Object.keys(messages).find(k => messages[k] === message);
+                            displayMessage(message, key);
+                        });
+                    });
+                }
+
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            });
+
+            // Слушаем статус печати Деда Мороза
+            database.ref(`typing/Дед Мороз`).on('value', (snapshot) => {
+                const isTyping = snapshot.val();
+                const typingIndicator = document.getElementById('typingIndicator');
+
+                if (isTyping) {
+                    typingIndicator.textContent = 'Дед Мороз печатает...';
+                } else {
+                    typingIndicator.textContent = '';
+                }
+            });
+        }
+
+        // Отобразить сообщение
+        function displayMessage(message, key) {
+            const messagesContainer = isSanta ? 
+                document.getElementById('santaMessagesContainer') : 
+                document.getElementById('messagesContainer');
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = isSanta ? 
+                (message.sender === 'Дед Мороз' ? 'santa-message from-santa' : 'santa-message from-user') :
+                (message.sender === currentUser ? 'message sent' : 'message received');
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.innerHTML = '×';
+            // Для Деда Мороза кнопка всегда видна
+            if (isSanta) {
+                deleteBtn.style.display = 'flex';
+            } else {
+                deleteBtn.style.display = 'none';
+            }
+            deleteBtn.onclick = () => showDeleteConfirm(key, message.text, message.sender);
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = message.text;
+
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time';
+            timeDiv.textContent = formatTime(message.timestamp);
+
+            messageDiv.appendChild(deleteBtn);
+            messageDiv.appendChild(contentDiv);
+            messageDiv.appendChild(timeDiv);
+
+            // Добавляем долгое нажатие для Деда Мороза
+            if (isSanta) {
+                let pressTimer;
+                let isLongPress = false;
+
+                messageDiv.addEventListener('mousedown', (e) => {
+                    isLongPress = false;
+                    pressTimer = setTimeout(() => {
+                        isLongPress = true;
+                        deleteBtn.style.display = 'block';
+                    }, 500);
+                });
+
+                messageDiv.addEventListener('mouseup', () => {
+                    clearTimeout(pressTimer);
+                });
+
+                messageDiv.addEventListener('mouseleave', () => {
+                    clearTimeout(pressTimer);
+                });
+
+                messageDiv.addEventListener('touchstart', (e) => {
+                    isLongPress = false;
+                    pressTimer = setTimeout(() => {
+                        isLongPress = true;
+                        deleteBtn.style.display = 'block';
+                    }, 500);
+                });
+
+                messageDiv.addEventListener('touchend', () => {
+                    clearTimeout(pressTimer);
+                });
+            }
+
+            messagesContainer.appendChild(messageDiv);
+        }
+
+        // Отправить сообщение
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const text = messageInput.value.trim();
+
+            if (!text) return;
+
+            const message = {
+                text: text,
+                sender: currentUser,
+                timestamp: Date.now()
+            };
+
+            database.ref(`messages/${currentUser}`).push(message);
+            messageInput.value = '';
+
+            // Уведомляем Деда Мороза о новом сообщении
+            database.ref(`notifications/Дед Мороз/${currentUser}`).set({
+                timestamp: Date.now(),
+                unread: true
+            });
+        }
+
+        // Отправить сообщение от Деда Мороза
+        function sendSantaMessage() {
+            const messageInput = document.getElementById('santaMessageInput');
+            const text = messageInput.value.trim();
+
+            if (!text || !selectedUser) return;
+
+            const message = {
+                text: text,
+                sender: 'Дед Мороз',
+                timestamp: Date.now()
+            };
+
+            database.ref(`messages/${selectedUser}`).push(message);
+            messageInput.value = '';
+
+            // Сбрасываем счетчик непрочитанных
+            database.ref(`notifications/Дед Мороз/${selectedUser}/unread`).set(false);
+        }
+
+        // Удалить сообщение
+        function deleteMessage(key) {
+            const path = isSanta ? 
+                `messages/${selectedUser}/${key}` : 
+                `messages/${currentUser}/${key}`;
+            database.ref(path).remove();
+        }
+
+        // Обработка нажатия клавиши
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            } else {
+                // Показываем статус печати
+                database.ref(`typing/${currentUser}`).set(true);
+
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    database.ref(`typing/${currentUser}`).set(false);
+                }, 1000);
+            }
+        }
+
+        // Обработка нажатия клавиши для Деда Мороза
+        function handleSantaKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendSantaMessage();
+            } else {
+                // Показываем статус печати
+                database.ref(`typing/Дед Мороз`).set(true);
+
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    database.ref(`typing/Дед Мороз`).set(false);
+                }, 1000);
+            }
+        }
+
+        // Загрузить список пользователей для Деда Мороза
+        function loadUsersList() {
+            if (usersListener) {
+                usersListener.off();
+            }
+
+            const messagesRef = database.ref('messages');
+
+            usersListener = messagesRef.on('value', (snapshot) => {
+                const usersList = document.getElementById('usersList');
+                usersList.innerHTML = '';
+
+                const messages = snapshot.val();
+                if (messages) {
+                    Object.keys(messages).forEach(username => {
+                        // Получаем данные о последнем посещении пользователя
+                        database.ref(`users/${username}`).once('value', (userSnapshot) => {
+                            const userData = userSnapshot.val();
+                            displayUser(username, userData || { lastSeen: Date.now() });
+                        });
+                    });
+                }
+            });
+
+            // Слушаем уведомления о новых сообщениях
+            database.ref('notifications/Дед Мороз').on('value', (snapshot) => {
+                const notifications = snapshot.val();
+                if (notifications) {
+                    Object.keys(notifications).forEach(username => {
+                        const badge = document.querySelector(`[data-username="${username}"] .unread-badge`);
+                        if (badge && notifications[username].unread) {
+                            badge.style.display = 'block';
+                        }
+                    });
+                }
+            });
+        }
+
+        // Отобразить пользователя в списке
+        function displayUser(username, userData) {
+            const usersList = document.getElementById('usersList');
+
+            const userItem = document.createElement('div');
+            userItem.className = 'user-item';
+            userItem.setAttribute('data-username', username);
+            userItem.onclick = () => openChatWithUser(username);
+
+            const userInfo = document.createElement('div');
+            userInfo.className = 'user-info';
+
+            const userName = document.createElement('div');
+            userName.className = 'user-name';
+            userName.textContent = username;
+
+            const lastSeen = document.createElement('div');
+            lastSeen.className = 'user-last-seen';
+            lastSeen.textContent = formatLastSeen(userData.lastSeen);
+
+            const unreadBadge = document.createElement('div');
+            unreadBadge.className = 'unread-badge';
+            unreadBadge.style.display = 'none';
+            unreadBadge.textContent = '!';
+
+            const deleteChatBtn = document.createElement('button');
+            deleteChatBtn.className = 'delete-chat-btn';
+            deleteChatBtn.textContent = 'Удалить чат';
+            deleteChatBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteChat(username);
+            };
+
+            userInfo.appendChild(userName);
+            userInfo.appendChild(lastSeen);
+            userItem.appendChild(userInfo);
+            userItem.appendChild(unreadBadge);
+            userItem.appendChild(deleteChatBtn);
+
+            usersList.appendChild(userItem);
+        }
+
+        // Удалить чат с пользователем
+        function deleteChat(username) {
+            if (confirm(`Вы уверены, что хотите удалить чат с ${username}?`)) {
+                // Удаляем все сообщения пользователя
+                database.ref(`messages/${username}`).remove();
+                // Удаляем уведомления
+                database.ref(`notifications/Дед Мороз/${username}`).remove();
+                // Удаляем пользователя из списка
+                database.ref(`users/${username}`).remove();
+            }
+        }
+
+        // Открыть чат с пользователем
+        function openChatWithUser(username) {
+            selectedUser = username;
+
+            // Отключаем все старые слушатели
+            if (messagesListener) {
+                messagesListener.off();
+            }
+
+            // Обновляем UI
+            document.getElementById('usersList').style.display = 'none';
+            document.querySelector('.santa-messages-wrapper').style.display = 'flex';
+            document.getElementById('santaTypingIndicator').style.display = 'block';
+            document.getElementById('santaChatInput').style.display = 'flex';
+            document.getElementById('santaChatTitle').textContent = `Чат с ${username}`;
+            document.getElementById('backButton').style.display = 'flex';
+
+            // Загружаем сообщения
+            loadSantaMessages(username);
+
+            // Сбрасываем счетчик непрочитанных
+            database.ref(`notifications/Дед Мороз/${username}/unread`).set(false);
+
+            // Слушаем статус печати пользователя
+            database.ref(`typing/${username}`).on('value', (snapshot) => {
+                const isTyping = snapshot.val();
+                const typingIndicator = document.getElementById('santaTypingIndicator');
+
+                if (isTyping) {
+                    typingIndicator.textContent = `${username} печатает...`;
+                } else {
+                    typingIndicator.textContent = '';
+                }
+            });
+        }
+
+        // Загрузить сообщения Деда Мороза с пользователем
+        function loadSantaMessages(username) {
+            if (messagesListener) {
+                messagesListener.off();
+            }
+
+            const messagesRef = database.ref(`messages/${username}`);
+
+            messagesListener = messagesRef.on('value', (snapshot) => {
+                const messagesContainer = document.getElementById('santaMessagesContainer');
+                messagesContainer.innerHTML = '';
+
+                const messages = snapshot.val();
+                if (messages) {
+                    // Группируем сообщения по датам
+                    const messagesByDate = {};
+                    Object.keys(messages).forEach(key => {
+                        const message = messages[key];
+                        const date = formatDate(message.timestamp);
+                        if (!messagesByDate[date]) {
+                            messagesByDate[date] = [];
+                        }
+                        messagesByDate[date].push(message);
+                    });
+
+                    // Отображаем сообщения по датам
+                    Object.keys(messagesByDate).sort().forEach(date => {
+                        // Добавляем заголовок с датой
+                        const dateHeader = document.createElement('div');
+                        dateHeader.className = 'date-header';
+                        dateHeader.textContent = date;
+                        messagesContainer.appendChild(dateHeader);
+
+                        // Добавляем сообщения за эту дату
+                        messagesByDate[date].forEach(message => {
+                            const key = Object.keys(messages).find(k => messages[k] === message);
+                            displayMessage(message, key);
+                        });
+                    });
+                }
+
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            });
+        }
+
+        // Обновить время последнего посещения пользователя
+        function updateUserLastSeen() {
+            database.ref(`users/${currentUser}`).set({
+                lastSeen: Date.now()
+            });
+
+            // Обновляем при закрытии страницы
+            window.addEventListener('beforeunload', () => {
+                database.ref(`users/${currentUser}`).set({
+                    lastSeen: Date.now()
+                });
+            });
+        }
+
+        // Форматирование времени
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Форматирование даты
+        function formatDate(timestamp) {
+            const date = new Date(timestamp);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}.${month}.${year}`;
+        }
+
+        // Форматирование времени последнего посещения
+        function formatLastSeen(timestamp) {
+            const now = Date.now();
+            const diff = now - timestamp;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+
+            const date = new Date(timestamp);
+
+            if (minutes < 1) {
+                return 'был(а) только что';
+            } else if (minutes < 60) {
+                return `был(а) ${minutes} ${getMinutesWord(minutes)} назад`;
+            } else if (hours < 24) {
+                return `был(а) сегодня в ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+            } else if (days < 2) {
+                return `был(а) вчера в ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+            } else {
+                return `был(а) ${date.toLocaleDateString('ru-RU')} в ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+            }
+        }
+
+        // Получение правильного слова для минут
+        function getMinutesWord(minutes) {
+            const lastTwoDigits = minutes % 100;
+            const lastDigit = minutes % 10;
+
+            if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+                return 'минут';
+            }
+
+            if (lastDigit === 1) {
+                return 'минуту';
+            } else if (lastDigit >= 2 && lastDigit <= 4) {
+                return 'минуты';
+            } else {
+                return 'минут';
+            }
+        }
+
+        // Выход из системы
+        function logout() {
+            if (messagesListener) {
+                messagesListener.off();
+            }
+            if (usersListener) {
+                usersListener.off();
+            }
+
+            // Обновляем время последнего посещения
+            if (currentUser && !isSanta) {
+                database.ref(`users/${currentUser}`).set({
+                    lastSeen: Date.now()
+                });
+            }
+
+            // Очищаем localStorage
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('isSanta');
+
+            currentUser = null;
+            isSanta = false;
+            selectedUser = null;
+
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('chatScreen').style.display = 'none';
+            document.getElementById('santaChatScreen').style.display = 'none';
+            document.getElementById('usernameInput').value = '';
+        }
+
+        // Инициализация при загрузке страницы
+        window.onload = function() {
+            createSnowflakes();
+
+            // Добавляем обработчик клика на кнопку "Назад"
+            const backButton = document.getElementById('backButton');
+            if (backButton) {
+                // Удаляем старые обработчики
+                backButton.onclick = null;
+
+                // Добавляем новый обработчик
+                backButton.addEventListener('click', function(e) {
+                    console.log('Кнопка "Назад" нажата!');
+                    e.stopPropagation();
+                    e.preventDefault();
+                    console.log('Вызываем showUsersList');
+                    window.showUsersList();
+                    console.log('showUsersList выполнен');
+                });
+
+                console.log('Обработчик кнопки "Назад" добавлен');
+            } else {
+                console.error('Кнопка "Назад" не найдена!');
+            }
+
+            // Проверяем, есть ли сохраненный пользователь
+            const savedUsername = localStorage.getItem('currentUser');
+            const savedIsSanta = localStorage.getItem('isSanta');
+
+            if (savedUsername) {
+                currentUser = savedUsername;
+                isSanta = savedIsSanta === 'true';
+
+                // Скрываем экран входа
+                document.getElementById('loginScreen').style.display = 'none';
+
+                if (isSanta) {
+                    showSantaChatScreen();
+                    loadUsersList();
+                } else {
+                    showChatScreen();
+                    loadMessages();
+                    updateUserLastSeen();
+                }
+            }
+        };
+        
+        // Показать модальное окно подтверждения удаления
+        function showDeleteConfirm(key, messageText, sender) {
+            const modal = document.getElementById('deleteConfirmModal');
+            const messageDiv = document.getElementById('deleteConfirmMessage');
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            const cancelBtn = document.getElementById('cancelDeleteBtn');
+            
+            messageDiv.textContent = `Сообщение от ${sender}: "${messageText}"`;
+            modal.style.display = 'flex';
+            
+            // Удаляем старые обработчики событий
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+            
+            // Добавляем новые обработчики
+            newConfirmBtn.addEventListener('click', () => {
+                deleteMessage(key);
+                modal.style.display = 'none';
+            });
+            
+            newCancelBtn.addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+        }
+    </script>
+
+    <!-- Модальное окно подтверждения удаления -->
+    <div id="deleteConfirmModal" class="delete-confirm-modal">
+        <div class="delete-confirm-content">
+            <div class="delete-confirm-title">Удалить сообщение?</div>
+            <div class="delete-confirm-message" id="deleteConfirmMessage"></div>
+            <div class="delete-confirm-buttons">
+                <button class="delete-confirm-btn confirm" id="confirmDeleteBtn">Удалить</button>
+                <button class="delete-confirm-btn cancel" id="cancelDeleteBtn">Отмена</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
